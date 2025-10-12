@@ -1,4 +1,4 @@
-import cv2
+﻿import cv2
 import numpy as np
 import pyautogui
 from PIL import Image
@@ -84,9 +84,9 @@ def preprocess(srcs):
     bgr_images = cv2.split(srcs)
 
     # 获取各个通道
-    r_src_img = bgr_images[2]  # 红色通道
-    g_src_img = bgr_images[1]  # 绿色通道（注意：原C++代码中这里索引为0）
-    b_src_img = bgr_images[0]  # 蓝色通道
+    r_src_img = bgr_images[0]  # 红色通道(注意：因为screenshot读入的图像通道顺序是rgb)
+    g_src_img = bgr_images[1]  # 绿色通道(注意：因为screenshot读入的图像通道顺序是rgb)
+    b_src_img = bgr_images[2]  # 蓝色通道(注意：因为screenshot读入的图像通道顺序是rgb)
 
     # 计算 a_src_img = r_src_img + 10 - g_src_img
     a_src_img = cv2.add(b_src_img, 10)
@@ -126,16 +126,6 @@ def find_contours(binary_src , min_area):
         filtered_contours.append(cnt)
     return filtered_contours
 
-class ScreenPatternAutomation:
-    def __init__(self, confidence_threshold):
-        """
-        初始化自动化脚本
-
-        Args:
-            confidence_threshold (float): 图案识别置信度阈值，0-1之间
-        """
-        self.confidence_threshold = confidence_threshold
-        self.template_images = {}
 
     # def load_template(self, template_name, template_path):
     #     """
@@ -157,61 +147,62 @@ class ScreenPatternAutomation:
     #     print(f"已加载模板: {template_name}")
 
 
-    def find_pattern(self, region=None):
-        """
-        在屏幕上查找指定模板
+def find_pattern(region=None):
+    """
+    在屏幕上查找指定模板
 
-        Args:
-            region (tuple): 搜索区域 (x, y, width, height)，None表示全屏
+    Args:
+        region (tuple): 搜索区域 (x, y, width, height)，None表示全屏
 
-        Returns:
-            rotated_rect: 轮廓的最小外接矩形列表，未找到返回None
-        """
+    Returns:
+        rotated_rect: 轮廓的最小外接矩形列表，未找到返回None
+    """
 
-        # 截取屏幕
-        screenshot = pyautogui.screenshot(region=region)
-        screenshot = preprocess(np.array(screenshot))
+    # 截取屏幕
+    screenshot = pyautogui.screenshot(region=region)
+    cv2.imwrite('screenshot.png', np.array(screenshot))
+    screenshot = preprocess(np.array(screenshot))
+    cv2.imwrite('preprocessed.png', np.array(screenshot))
 
-        # 查找符合条件的轮廓，并返回最小外接矩形
-        result = find_contours(screenshot, 100)
-        rotated_rect=[]
-        for cnt in result:
-            rotated_rect.append(cv2.minAreaRect(cnt))
+    # 查找符合条件的轮廓，并返回最小外接矩形
+    result = find_contours(screenshot, 120)
+    rotated_rect=[]
+    for cnt in result:
+        rotated_rect.append(cv2.minAreaRect(cnt))
 
-        return rotated_rect
+    return rotated_rect
 
-    def type_at_pattern(self, text, region=None, offset_x=0, offset_y=0):
-        """
-        在图案位置输入文本，支持偏移
+def type_at_pattern(text, region=None, offset_x=0, offset_y=0):
+    """
+    在图案位置输入文本，支持偏移
 
-        Args:
-            text (str): 要输入的文本
-            region (tuple): 搜索区域
-            offset_x (int): 相对于模板中心的X轴偏移量
-            offset_y (int): 相对于模板中心的Y轴偏移量
+    Args:
+        text (str): 要输入的文本
+        region (tuple): 搜索区域
+        offset_x (int): 相对于模板中心的X轴偏移量
+        offset_y (int): 相对于模板中心的Y轴偏移量
 
-        Returns:
-            bool: 成功输入返回True，否则False
-        """
-        pattern_info = self.find_pattern(region=region)
-        if pattern_info is None:
+    Returns:
+        bool: 成功输入返回True，否则False
+    """
+    pattern_info = find_pattern(region=region)
+    if pattern_info is None:
 
-            return False
-        print('长度为',len(pattern_info))
-        for rect in pattern_info:
-            center_x, center_y = map(int, rect[0])            # 应用偏移
-            target_x = center_x + offset_x
-            target_y = center_y + offset_y
+        return False
+    print('长度为',len(pattern_info))
+    for rect in pattern_info:
+        center_x, center_y = map(int, rect[0])  # 应用偏移
+        target_x = center_x + offset_x
+        target_y = center_y + offset_y
 
-            pyautogui.write(text)
-            pyautogui.click(target_x, target_y)  # 先点击定位
-        return True
+        pyautogui.write(text)
+        pyautogui.click(target_x, target_y)  # 点击定位
+    return True
 
 
 
 def main():
     # 创建自动化实例
-    automation = ScreenPatternAutomation(confidence_threshold=0.99)
     monitor = KeyboardMonitor()
     monitor.start()
     try:
@@ -224,7 +215,7 @@ def main():
                 break
             elif status == 'start':
                 print('我开始辣')
-                automation.type_at_pattern(tool, offset_y=58, offset_x=-79)
+                type_at_pattern(text=tool, offset_y=58, offset_x=-79)
             elif status == 'pause':
                 print('我休眠辣')
                 while monitor.status == 'pause':
